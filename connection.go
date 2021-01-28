@@ -19,7 +19,7 @@ func ConnectDB() *mongo.Collection {
 
 	// Set client options
   mongoAPIR
-	clientOptions := options.Client().ApplyURI("mongodb+srv://brad123:brad123@cluster0.zf9fl.mongodb.net/udemy?retryWrites=true&w=majority"
+	clientOptions := options.Client().ApplyURI("mongodb+srv://brad123:brad123@cluster0.zf9fl.mongodb.net/udemy?retryWrites=true&w=majority")
 
 	// Connect to MongoDB
 	client, err := mongo.Connect(context.TODO(), clientOptions)
