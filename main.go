@@ -1,35 +1,178 @@
+//	client, err := mongo.NewClient(options.Client().ApplyURI("mongodb+srv://brad123:brad123@cluster0.zf9fl.mongodb.net/udemy?retryWrites=true&w=majority"))
 package main
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"log"
-	"time"
-
+	"net/http"
+	
+	"github.com/gorilla/mux"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
-
+//Connection mongoDB with helper class
+collection := helper.ConnectDB()
 func main() {
-	client, err := mongo.NewClient(options.Client().ApplyURI("mongodb+srv://brad123:brad123@cluster0.zf9fl.mongodb.net/udemy?retryWrites=true&w=majority"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	err = client.Connect(ctx)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer client.Disconnect(ctx)
-	err = client.Ping(ctx, readpref.Primary())
-	if err != nil {
-		log.Fatal(err)
-	}
-	databases, err := client.ListDatabaseNames(ctx, bson.M{})
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println(databases)
+	//Init Router
+	r := mux.NewRouter()
+
+  	// arrange our route
+	r.HandleFunc("/api/books", getBooks).Methods("GET")
+	r.HandleFunc("/api/books/{id}", getBook).Methods("GET")
+	r.HandleFunc("/api/books", createBook).Methods("POST")
+	r.HandleFunc("/api/books/{id}", updateBook).Methods("PUT")
+	r.HandleFunc("/api/books/{id}", deleteBook).Methods("DELETE")
+
+  	// set our port address
+	log.Fatal(http.ListenAndServe(":8000", r))
+
 }
+
+func getBooks(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// we created Book array
+	var books []models.Book
+
+	// bson.M{},  we passed empty filter. So we want to get all data.
+	cur, err := collection.Find(context.TODO(), bson.M{})
+
+	if err != nil {
+		helper.GetError(err, w)
+		return
+	}
+
+	// Close the cursor once finished
+	/*A defer statement defers the execution of a function until the surrounding function returns.
+	simply, run cur.Close() process but after cur.Next() finished.*/
+	defer cur.Close(context.TODO())
+
+	for cur.Next(context.TODO()) {
+
+		// create a value into which the single document can be decoded
+		var book models.Book
+		// & character returns the memory address of the following variable.
+		err := cur.Decode(&book) // decode similar to deserialize process.
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		// add item our array
+		books = append(books, book)
+	}
+
+	if err := cur.Err(); err != nil {
+		log.Fatal(err)
+	}
+
+	json.NewEncoder(w).Encode(books) // encode similar to serialize process.
+}
+
+func getBook(w http.ResponseWriter, r *http.Request) {
+	// set header.
+	w.Header().Set("Content-Type", "application/json")
+
+	var book models.Book
+	// we get params with mux.
+	var params = mux.Vars(r)
+
+	// string to primitive.ObjectID
+	id, _ := primitive.ObjectIDFromHex(params["id"])
+
+	// We create filter. If it is unnecessary to sort data for you, you can use bson.M{}
+	filter := bson.M{"_id": id}
+	err := collection.FindOne(context.TODO(), filter).Decode(&book)
+
+	if err != nil {
+		helper.GetError(err, w)
+		return
+	}
+
+	json.NewEncoder(w).Encode(book)
+}
+
+func createBook(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	var book models.Book
+
+	// we decode our body request params
+	_ = json.NewDecoder(r.Body).Decode(&book)
+
+	// insert our book model.
+	result, err := collection.InsertOne(context.TODO(), book)
+
+	if err != nil {
+		helper.GetError(err, w)
+		return
+	}
+
+	json.NewEncoder(w).Encode(result)
+}
+
+func updateBook(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	var params = mux.Vars(r)
+
+	//Get id from parameters
+	id, _ := primitive.ObjectIDFromHex(params["id"])
+
+	var book models.Book
+	
+	// Create filter
+	filter := bson.M{"_id": id}
+
+	// Read update model from body request
+	_ = json.NewDecoder(r.Body).Decode(&book)
+
+	// prepare update model.
+	update := bson.D{
+		{"$set", bson.D{
+			{"isbn", book.Isbn},
+			{"title", book.Title},
+			{"author", bson.D{
+				{"firstname", book.Author.FirstName},
+				{"lastname", book.Author.LastName},
+			}},
+		}},
+	}
+
+	err := collection.FindOneAndUpdate(context.TODO(), filter, update).Decode(&book)
+
+	if err != nil {
+		helper.GetError(err, w)
+		return
+	}
+
+	book.ID = id
+
+	json.NewEncoder(w).Encode(book)
+}
+
+func deleteBook(w http.ResponseWriter, r *http.Request) {
+	// Set header
+	w.Header().Set("Content-Type", "application/json")
+
+	// get params
+	var params = mux.Vars(r)
+
+	// string to primitve.ObjectID
+	id, err := primitive.ObjectIDFromHex(params["id"])
+
+	// prepare filter.
+	filter := bson.M{"_id": id}
+
+	deleteResult, err := collection.DeleteOne(context.TODO(), filter)
+
+	if err != nil {
+		helper.GetError(err, w)
+		return
+	}
+
+	json.NewEncoder(w).Encode(deleteResult)
+}
+
+
+
