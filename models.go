@@ -3,7 +3,7 @@ package models
 import "go.mongodb.org/mongo-driver/bson/primitive"
 
 //Create Struct
-type Book struct {
+/*type Book struct {
 	ID     primitive.ObjectID `json:"_id,omitempty" bson:"_id,omitempty"`
 	Isbn   string             `json:"isbn,omitempty" bson:"isbn,omitempty"`
 	Title  string             `json:"title" bson:"title,omitempty"`
@@ -13,4 +13,17 @@ type Book struct {
 type Author struct {
 	FirstName string `json:"firstname,omitempty" bson:"firstname,omitempty"`
 	LastName  string `json:"lastname,omitempty" bson:"lastname,omitempty"`
+}*/
+
+//Create Struct
+type Book struct {
+	ID     primitive.ObjectID `bson:"_id,omitempty"`
+	Isbn   string             `bson:"isbn,omitempty"`
+	Title  string             `bson:"title,omitempty"`
+	Author *Author            `bson:"author,omitempty"`
+}
+
+type Author struct {
+	FirstName string `bson:"firstname,omitempty"`
+	LastName  string `bson:"lastname,omitempty"`
 }
